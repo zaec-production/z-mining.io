@@ -42,6 +42,7 @@
             justify-content: center;
             min-height: 100vh;
             text-align: center;
+            position: relative;
         }
         .container {
             width: 90%;
@@ -333,6 +334,44 @@
             transform: scale(1.2);
         }
 
+        /* Стили для баннера анти-автокликера */
+        .antibot-banner {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(30, 30, 55, 0.98);
+            border: 2px solid #ff4444;
+            border-radius: 20px;
+            padding: 30px;
+            z-index: 9999;
+            text-align: center;
+            box-shadow: 0 0 50px rgba(255, 68, 68, 0.5);
+            animation: bannerPulse 2s infinite;
+            min-width: 300px;
+            backdrop-filter: blur(10px);
+        }
+        .antibot-banner h3 {
+            color: #ff4444;
+            font-size: 1.8em;
+            margin-bottom: 15px;
+            text-shadow: 0 0 10px #ff4444;
+        }
+        .antibot-banner p {
+            color: #ffffff;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+        }
+        .antibot-banner .warning-icon {
+            font-size: 4em;
+            margin-bottom: 15px;
+        }
+        @keyframes bannerPulse {
+            0% { box-shadow: 0 0 30px rgba(255, 68, 68, 0.5); }
+            50% { box-shadow: 0 0 60px rgba(255, 68, 68, 0.8); }
+            100% { box-shadow: 0 0 30px rgba(255, 68, 68, 0.5); }
+        }
+
         @media (max-width: 768px) {
             .container {
                 padding: 20px;
@@ -360,6 +399,10 @@
             }
             .tutorial-title {
                 font-size: 1.6em;
+            }
+            .antibot-banner {
+                width: 90%;
+                padding: 20px;
             }
         }
 
@@ -524,36 +567,31 @@
             <div class="shop" id="shopItems"></div>
         </div>
 
-        <!-- ===== ОБНОВЛЁННАЯ ПАНЕЛЬ ОБМЕНА ===== -->
+        <!-- Панель обмена -->
         <div id="exchangePanel" class="exchange-panel">
             <div class="panel-header">
                 <h2>Обмен валют</h2>
                 <button class="panel-close" id="closeExchangePanel">×</button>
             </div>
             <div class="exchange-content">
-                <!-- Баланс Z к USD -->
                 <div class="exchange-row">
                     <span class="exchange-label">Z → USD (1 Z = 0.002$):</span>
                     <strong id="zToUsdRate">0.0000 $</strong>
                 </div>
                 <button id="convertZToUsd" class="exchange-btn" style="margin-bottom: 20px;">💰 Обменять все Z на USD</button>
 
-                <!-- Разделитель -->
                 <div style="border-bottom: 1px solid #448aff; margin: 15px 0;"></div>
 
-                <!-- Баланс USD -->
                 <div class="exchange-row">
                     <span class="exchange-label">Ваш баланс USD:</span>
                     <strong id="usdBalanceDisplay">10.00 $</strong>
                 </div>
 
-                <!-- Курс USD → RUB -->
                 <div class="exchange-row">
                     <span class="exchange-label">Курс USD→RUB:</span>
                     <strong id="usdToRubRate">Загрузка...</strong>
                 </div>
 
-                <!-- ПОЛЕ ДЛЯ ВВОДА СУММЫ (ТОЛЬКО ЦЕЛЫЕ) -->
                 <div class="exchange-row" style="flex-direction: column; align-items: stretch; gap: 15px;">
                     <div style="display: flex; justify-content: space-between; align-items: center;">
                         <span class="exchange-label">Сколько USD обменять?</span>
@@ -562,18 +600,16 @@
                                style="width: 100px; padding: 8px; border-radius: 8px; background: rgba(0,0,0,0.6); border: 1px solid #00c6ff; color: white; text-align: center; font-size: 1.1em;">
                     </div>
                     
-                    <!-- ДИНАМИЧЕСКАЯ КНОПКА -->
                     <button id="convertUsdToRubCustom" class="exchange-btn" style="background: linear-gradient(45deg, #4caf50, #2e7d32);">
                         💵 Обменять <span id="usdAmountDisplay">10</span> USD → ₽
                     </button>
                 </div>
 
-                <!-- Старая кнопка (скрыта) -->
                 <button id="convertUsdToRub" style="display: none;">Зачислить USD >> RUB на Баланс</button>
             </div>
         </div>
 
-        <!-- ===== ПАНЕЛЬ ОБУЧЕНИЯ ===== -->
+        <!-- Панель обучения -->
         <div id="tutorialPanel" class="tutorial-panel">
             <div class="panel-header">
                 <h2 style="color: #00ffff;">📚 Добро пожаловать в Z-МАЙНИНГ!</h2>
@@ -588,7 +624,7 @@
         </div>
     </div>
 
-    <!-- ========== КНОПКА HARD RESET ========== -->
+    <!-- КНОПКА HARD RESET -->
     <button id="resetProgressBtn" title="Сбросить прогресс" style="
         position: fixed;
         bottom: 80px;
@@ -612,7 +648,7 @@
         user-select: none;
     ">HARD RESET!</button>
 
-    <!-- ========== КНОПКА CHANGELOG ========== -->
+    <!-- КНОПКА CHANGELOG -->
     <button onclick="openChangelog()" style="
         position: fixed;
         bottom: 10px;
@@ -638,7 +674,7 @@
         user-select: none;
     ">📋 Changelog</button>
 
-    <!-- ========== РЕГУЛЯТОР ГРОМКОСТИ ========== -->
+    <!-- РЕГУЛЯТОР ГРОМКОСТИ -->
     <div id="volumeControlContainer" style="
         position: fixed;
         bottom: 10px;
@@ -768,6 +804,111 @@
             automation: 15000,
             usedGpu: 0
         };
+
+        // ===== СИСТЕМА АНТИ-АВТОКЛИКЕРА =====
+        let clickTimes = [];
+        let antibotStrikes = 0;
+        let antibotBanner = null;
+        let antibotCooldown = false;
+        let strikeResetTimer = null;
+
+        function checkClickSpeed() {
+            if (antibotCooldown) return;
+            
+            const now = Date.now();
+            clickTimes.push(now);
+            
+            // Удаляем клики старше 1 секунды
+            clickTimes = clickTimes.filter(time => now - time < 1000);
+            
+            // Проверяем скорость кликов (больше 12 в секунду)
+            if (clickTimes.length > 12) {
+                handleAntibotViolation();
+            }
+        }
+
+        function handleAntibotViolation() {
+            antibotStrikes++;
+            
+            if (antibotStrikes === 1) {
+                // Первое нарушение — баннер на 10 секунд
+                showAntibotBanner('⚠️ ПРЕДУПРЕЖДЕНИЕ', 'Выключите автокликер! При повторном нарушении прогресс будет удалён.', 10000);
+                antibotCooldown = true;
+                
+                setTimeout(() => {
+                    antibotCooldown = false;
+                    clickTimes = []; // Сбрасываем счётчик кликов
+                }, 10000);
+                
+                // Сбрасываем счётчик нарушений через 30 секунд без нарушений
+                if (strikeResetTimer) clearTimeout(strikeResetTimer);
+                strikeResetTimer = setTimeout(() => {
+                    antibotStrikes = 0;
+                    console.log('Счётчик анти-автокликера сброшен');
+                }, 30000);
+                
+            } else if (antibotStrikes >= 2) {
+                // Второе нарушение — HARD RESET
+                showAntibotBanner('💀 АВТОКЛИКЕР ОБНАРУЖЕН', 'Прогресс будет сброшен.', 3000);
+                
+                setTimeout(() => {
+                    performHardReset();
+                    antibotStrikes = 0;
+                    antibotCooldown = false;
+                    clickTimes = [];
+                    if (strikeResetTimer) clearTimeout(strikeResetTimer);
+                }, 3000);
+            }
+        }
+
+        function showAntibotBanner(title, message, duration) {
+            if (antibotBanner) {
+                antibotBanner.remove();
+            }
+            
+            antibotBanner = document.createElement('div');
+            antibotBanner.className = 'antibot-banner';
+            antibotBanner.innerHTML = `
+                <div class="warning-icon">⚠️</div>
+                <h3>${title}</h3>
+                <p>${message}</p>
+            `;
+            document.body.appendChild(antibotBanner);
+            
+            setTimeout(() => {
+                if (antibotBanner) {
+                    antibotBanner.remove();
+                    antibotBanner = null;
+                }
+            }, duration);
+        }
+
+        function performHardReset() {
+            // Полный сброс прогресса
+            localStorage.removeItem('zMining');
+            localStorage.removeItem('zMiningTutorialCompleted');
+            
+            gameData = {
+                balance: 0,
+                usdBalance: 10,
+                rubBalance: 15000,
+                mineRate: 0,
+                farmPower: 0,
+                level: 1,
+                exp: 0,
+                upgrades: {
+                    gpu: 0, asic: 0, cooling: 0, powerSupply: 0,
+                    network: 0, security: 0, storage: 0, automation: 0,
+                    usedGpu: 0
+                }
+            };
+            
+            updateUI();
+            alert('⚠️ Прогресс был сброшен из-за обнаружения автокликера.');
+            
+            // Показываем обучение заново
+            setTimeout(() => showTutorial(), 500);
+        }
 
         // ===== ОБУЧЕНИЕ =====
         let tutorialStep = 0;
@@ -964,9 +1105,12 @@
         }, 1000);
 
         // -------------------------------
-        // РУЧНОЙ МАЙНИНГ
+        // РУЧНОЙ МАЙНИНГ — С АНТИ-АВТОКЛИКЕРОМ
         // -------------------------------
         document.getElementById('mineBtn').addEventListener('click', () => {
+            // Проверка на автокликер
+            checkClickSpeed();
+            
             const earned = gameData.mineRate * 2;
             gameData.balance += earned;
             gameData.exp += 0.5;
@@ -1116,9 +1260,8 @@
         }
 
         // -------------------------------
-        // ОБМЕН ВАЛЮТ — НОВАЯ ВЕРСИЯ
+        // ОБМЕН ВАЛЮТ
         // -------------------------------
-        // Обмен всех Z на USD
         convertZToUsd.addEventListener('click', () => {
             if (gameData.balance <= 0) {
                 alert('Недостаточно Z для обмена!');
@@ -1135,7 +1278,7 @@
             setTimeout(() => statusMsg.textContent = '', 5000);
         });
 
-        // ===== НОВЫЙ ОБМЕН USD → RUB С ВЫБОРОМ СУММЫ =====
+        // Новый обмен USD → RUB с выбором суммы
         const usdAmountInput = document.getElementById('usdAmountToRub');
         const usdAmountDisplay = document.getElementById('usdAmountDisplay');
         const convertUsdToRubCustom = document.getElementById('convertUsdToRubCustom');
@@ -1198,30 +1341,13 @@
         });
 
         // -------------------------------
-        // СБРОС ПРОГРЕССА
+        // СБРОС ПРОГРЕССА (РУЧНОЙ)
         // -------------------------------
         document.getElementById('resetProgressBtn').addEventListener('click', () => {
             const confirmReset = confirm('Вы уверены, что хотите сбросить прогресс? Все данные будут удалены!');
             if (confirmReset) {
-                localStorage.removeItem('zMining');
-                localStorage.removeItem('zMiningTutorialCompleted');
-                gameData = {
-                    balance: 0,
-                    usdBalance: 10,
-                    rubBalance: 15000,
-                    mineRate: 0,
-                    farmPower: 0,
-                    level: 1,
-                    exp: 0,
-                    upgrades: {
-                        gpu: 0, asic: 0, cooling: 0, powerSupply: 0,
-                        network: 0, security: 0, storage: 0, automation: 0,
-                        usedGpu: 0
-                    }
-                };
-                updateUI();
+                performHardReset();
                 alert('Прогресс сброшен!');
-                setTimeout(() => showTutorial(), 500);
             }
         });
 
@@ -1311,6 +1437,7 @@
             checkAndShowTutorial();
         });
 
+
         // -------------------------------
         // CHANGELOG
         // -------------------------------
@@ -1319,7 +1446,14 @@
 Z-МАЙНИНГ — ИСТОРИЯ ОБНОВЛЕНИЙ
 
 ═══════════════════════════════════════════
-ВЕРСИЯ 2.5.0 — 13.02.2026
+ВЕРСИЯ 2.5.3 — 13.02.2026
+═══════════════════════════════════════════
+• Добавлена и обновлена античит система
+• Анти-кликер система
+• Сброс прогресса при повторном нарушении
+
+═══════════════════════════════════════════
+ВЕРСИЯ 2.5.0 — 12.02.2026
 ═══════════════════════════════════════════
 • Обмен USD → RUB: теперь можно выбрать любую сумму
 • Только целые числа, без копеек
@@ -1385,7 +1519,7 @@ Z-МАЙНИНГ — ИСТОРИЯ ОБНОВЛЕНИЙ
 • Курс ЦБ РФ
 
 ═══════════════════════════════════════════
-ВЕРСИЯ 1.0.0
+ВЕРСИЯ 1.0.0 - 5.01.2026
 ═══════════════════════════════════════════
 • Майнинг, улучшения, уровни
 • Сохранение в localStorage
@@ -1460,3 +1594,4 @@ Z-МАЙНИНГ — ИСТОРИЯ ОБНОВЛЕНИЙ
     </script>
 </body>
 </html>
+
