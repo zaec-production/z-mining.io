@@ -818,11 +818,11 @@
             const now = Date.now();
             clickTimes.push(now);
             
-            // Удаляем клики старше 1 секунды
-            clickTimes = clickTimes.filter(time => now - time < 1000);
+            // Удаляем клики старше 2 секунды
+            clickTimes = clickTimes.filter(time => now - time < 2000);
             
-            // Проверяем скорость кликов (больше 10 раз в секунду)
-            if (clickTimes.length > 10) {
+            // Проверяем скорость кликов (больше 9 раз в секунду)
+            if (clickTimes.length > 9) {
                 handleAntibotViolation();
             }
         }
@@ -1594,6 +1594,7 @@ Z-МАЙНИНГ — ИСТОРИЯ ОБНОВЛЕНИЙ
     </script>
 </body>
 </html>
+
 
 
 
