@@ -821,8 +821,8 @@
             // Удаляем клики старше 1 секунды
             clickTimes = clickTimes.filter(time => now - time < 1000);
             
-            // Проверяем скорость кликов (больше 12 в секунду)
-            if (clickTimes.length > 12) {
+            // Проверяем скорость кликов (больше 5 в секунду)
+            if (clickTimes.length > 5) {
                 handleAntibotViolation();
             }
         }
@@ -1594,4 +1594,5 @@ Z-МАЙНИНГ — ИСТОРИЯ ОБНОВЛЕНИЙ
     </script>
 </body>
 </html>
+
 
