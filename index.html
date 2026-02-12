@@ -805,167 +805,125 @@
             usedGpu: 0
         };
 
-        // ===== СИСТЕМА АНТИ-АВТОКЛИКЕРА (УЛУЧШЕННАЯ) =====
-        let clickLog = [];           // Массив { time: timestamp, interval: ms }
-        let antibotStrikes = 0;
-        let antibotBanner = null;
-        let antibotCooldown = false;
-        let strikeResetTimer = null;
+// ===== СИСТЕМА АНТИ-АВТОКЛИКЕРА (УЛУЧШЕННАЯ) =====
+let clickLog = [];           // Массив { time: timestamp, interval: ms }
+let antibotStrikes = 0;
+let antibotBanner = null;
+let antibotCooldown = false;
+let strikeResetTimer = null;
 
-        const ANTIBOT_CONFIG = {
-            WINDOW_SIZE: 2000,      // Анализируем последние 2 секунды
-            INTERVAL_TOLERANCE: 5,  // Допуск ±5 мс
-            MIN_SUSPECT_INTERVALS: 3, // Нужно 3+ похожих интервала
-            BANNER_DURATION: 10000,  // 10 секунд
-            RESET_DELAY: 60000,     // Сброс через 60 секунд
-            HARD_RESET_DELAY: 3000  // 3 секунды до сброса
-        };
+const ANTIBOT_CONFIG = {
+    WINDOW_SIZE: 2000,      // Анализируем последние 2 секунды
+    FAST_CLICK_THRESHOLD: 200, // Только клики БЫСТРЕЕ 200 мс
+    INTERVAL_TOLERANCE: 5,  // Допуск ±5 мс
+    MIN_SUSPECT_INTERVALS: 3, // Нужно 3+ похожих интервала
+    BANNER_DURATION: 10000,  // 10 секунд
+    RESET_DELAY: 60000,     // Сброс через 60 секунд
+    HARD_RESET_DELAY: 3000  // 3 секунды до сброса
+};
 
-        function checkClickSpeed() {
-            if (antibotCooldown) return;
-            
-            const now = Date.now();
-            
-            // Добавляем текущий клик
-            if (clickLog.length > 0) {
-                const lastClick = clickLog[clickLog.length - 1];
-                const interval = now - lastClick.time;
-                clickLog.push({
-                    time: now,
-                    interval: interval
-                });
-            } else {
-                clickLog.push({
-                    time: now,
-                    interval: 0
-                });
-            }
-            
-            // Удаляем клики старше 2 секунд
-            clickLog = clickLog.filter(click => now - click.time < ANTIBOT_CONFIG.WINDOW_SIZE);
-            
-            // Нужно минимум 4 клика для анализа интервалов
-            if (clickLog.length < 4) return;
-            
-            // Анализируем интервалы (пропускаем первый, у него interval = 0)
-            const intervals = clickLog.slice(1).map(click => click.interval);
-            
-            // Ищем группы похожих интервалов
-            let similarGroups = [];
-            
-            for (let i = 0; i < intervals.length; i++) {
-                const currentInterval = intervals[i];
-                let group = [currentInterval];
-                
-                for (let j = i + 1; j < intervals.length; j++) {
-                    if (Math.abs(intervals[j] - currentInterval) <= ANTIBOT_CONFIG.INTERVAL_TOLERANCE) {
-                        group.push(intervals[j]);
-                    }
-                }
-                
-                if (group.length >= ANTIBOT_CONFIG.MIN_SUSPECT_INTERVALS) {
-                    similarGroups.push(group);
-                }
-            }
-            
-            // Если есть подозрительные группы — это автокликер
-            if (similarGroups.length > 0) {
-                console.log('Обнаружен автокликер! Интервалы:', similarGroups[0]);
-                handleAntibotViolation();
+function checkClickSpeed() {
+    if (antibotCooldown) return;
+    
+    const now = Date.now();
+    
+    // Добавляем текущий клик
+    if (clickLog.length > 0) {
+        const lastClick = clickLog[clickLog.length - 1];
+        const interval = now - lastClick.time;
+        clickLog.push({
+            time: now,
+            interval: interval
+        });
+    } else {
+        clickLog.push({
+            time: now,
+            interval: 0
+        });
+    }
+    
+    // Удаляем клики старше 2 секунд
+    clickLog = clickLog.filter(click => now - click.time < ANTIBOT_CONFIG.WINDOW_SIZE);
+    
+    // Нужно минимум 4 клика для анализа интервалов
+    if (clickLog.length < 4) return;
+    
+    // Анализируем интервалы (пропускаем первый, у него interval = 0)
+    // И ТОЛЬКО БЫСТРЫЕ КЛИКИ (≤ 200 мс)
+    const intervals = clickLog.slice(1)
+        .map(click => click.interval)
+        .filter(interval => interval <= ANTIBOT_CONFIG.FAST_CLICK_THRESHOLD);
+    
+    // Если мало быстрых кликов — выходим
+    if (intervals.length < ANTIBOT_CONFIG.MIN_SUSPECT_INTERVALS) return;
+    
+    // Ищем группы похожих интервалов
+    let similarGroups = [];
+    
+    for (let i = 0; i < intervals.length; i++) {
+        const currentInterval = intervals[i];
+        let group = [currentInterval];
+        
+        for (let j = i + 1; j < intervals.length; j++) {
+            if (Math.abs(intervals[j] - currentInterval) <= ANTIBOT_CONFIG.INTERVAL_TOLERANCE) {
+                group.push(intervals[j]);
             }
         }
-
-        function handleAntibotViolation() {
-            antibotStrikes++;
-            
-            if (antibotStrikes === 1) {
-                // Первое нарушение — баннер на 10 секунд
-                showAntibotBanner(
-                    '⚠️ АВТОКЛИКЕР ОБНАРУЖЕН', 
-                    'Обнаружены подозрительно равномерные клики. При повторном нарушении прогресс будет удалён.',
-                    ANTIBOT_CONFIG.BANNER_DURATION
-                );
-                
-                antibotCooldown = true;
-                
-                setTimeout(() => {
-                    antibotCooldown = false;
-                    clickLog = []; // Сбрасываем лог кликов
-                }, ANTIBOT_CONFIG.BANNER_DURATION);
-                
-                // Сбрасываем счётчик нарушений через 60 секунд без нарушений
-                if (strikeResetTimer) clearTimeout(strikeResetTimer);
-                strikeResetTimer = setTimeout(() => {
-                    antibotStrikes = 0;
-                    console.log('Счётчик анти-автокликера сброшен');
-                }, ANTIBOT_CONFIG.RESET_DELAY);
-                
-            } else if (antibotStrikes >= 2) {
-                // Второе нарушение — HARD RESET
-                showAntibotBanner(
-                    '💀 АВТОКЛИКЕР ПОДТВЕРЖДЁН', 
-                    'Прогресс будет сброшен!',
-                    ANTIBOT_CONFIG.HARD_RESET_DELAY
-                );
-                
-                setTimeout(() => {
-                    performHardReset();
-                    antibotStrikes = 0;
-                    antibotCooldown = false;
-                    clickLog = [];
-                    if (strikeResetTimer) clearTimeout(strikeResetTimer);
-                }, ANTIBOT_CONFIG.HARD_RESET_DELAY);
-            }
+        
+        if (group.length >= ANTIBOT_CONFIG.MIN_SUSPECT_INTERVALS) {
+            similarGroups.push(group);
         }
+    }
+    
+    // Если есть подозрительные группы — это автокликер
+    if (similarGroups.length > 0) {
+        console.log('Обнаружен автокликер! Быстрые интервалы:', similarGroups[0]);
+        handleAntibotViolation();
+    }
+}
 
-        function showAntibotBanner(title, message, duration) {
-            if (antibotBanner) {
-                antibotBanner.remove();
-            }
-            
-            antibotBanner = document.createElement('div');
-            antibotBanner.className = 'antibot-banner';
-            antibotBanner.innerHTML = `
-                <div class="warning-icon">⚠️</div>
-                <h3>${title}</h3>
-                <p>${message}</p>
-            `;
-            document.body.appendChild(antibotBanner);
-            
-            setTimeout(() => {
-                if (antibotBanner) {
-                    antibotBanner.remove();
-                    antibotBanner = null;
-                }
-            }, duration);
-        }
-
-        function performHardReset() {
-            // Полный сброс прогресса
-            localStorage.removeItem('zMining');
-            localStorage.removeItem('zMiningTutorialCompleted');
-            
-            gameData = {
-                balance: 0,
-                usdBalance: 10,
-                rubBalance: 15000,
-                mineRate: 0,
-                farmPower: 0,
-                level: 1,
-                exp: 0,
-                upgrades: {
-                    gpu: 0, asic: 0, cooling: 0, powerSupply: 0,
-                    network: 0, security: 0, storage: 0, automation: 0,
-                    usedGpu: 0
-                }
-            };
-            
-            updateUI();
-            alert('⚠️ Прогресс был сброшен из-за обнаружения автокликера.');
-            
-            // Показываем обучение заново
-            setTimeout(() => showTutorial(), 500);
-        }
+function handleAntibotViolation() {
+    antibotStrikes++;
+    
+    if (antibotStrikes === 1) {
+        // Первое нарушение — баннер на 10 секунд
+        showAntibotBanner(
+            '⚠️ АВТОКЛИКЕР ОБНАРУЖЕН', 
+            'Обнаружены подозрительно равномерные быстрые клики. При повторном нарушении прогресс будет удалён.',
+            ANTIBOT_CONFIG.BANNER_DURATION
+        );
+        
+        antibotCooldown = true;
+        
+        setTimeout(() => {
+            antibotCooldown = false;
+            clickLog = []; // Сбрасываем лог кликов
+        }, ANTIBOT_CONFIG.BANNER_DURATION);
+        
+        // Сбрасываем счётчик нарушений через 60 секунд без нарушений
+        if (strikeResetTimer) clearTimeout(strikeResetTimer);
+        strikeResetTimer = setTimeout(() => {
+            antibotStrikes = 0;
+            console.log('Счётчик анти-автокликера сброшен');
+        }, ANTIBOT_CONFIG.RESET_DELAY);
+        
+    } else if (antibotStrikes >= 2) {
+        // Второе нарушение — HARD RESET
+        showAntibotBanner(
+            '💀 АВТОКЛИКЕР ПОДТВЕРЖДЁН', 
+            'Прогресс будет сброшен!',
+            ANTIBOT_CONFIG.HARD_RESET_DELAY
+        );
+        
+        setTimeout(() => {
+            performHardReset();
+            antibotStrikes = 0;
+            antibotCooldown = false;
+            clickLog = [];
+            if (strikeResetTimer) clearTimeout(strikeResetTimer);
+        }, ANTIBOT_CONFIG.HARD_RESET_DELAY);
+    }
+}
 
         // ===== ОБУЧЕНИЕ =====
         let tutorialStep = 0;
@@ -1659,3 +1617,4 @@ Z-МАЙНИНГ — ИСТОРИЯ ОБНОВЛЕНИЙ
     </script>
 </body>
 </html>
+
