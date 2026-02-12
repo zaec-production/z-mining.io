@@ -20,7 +20,7 @@
             -webkit-touch-callout: none;
         }
         
-        input, textarea, .bet-input {
+        input, textarea, .bet-input, .action-input {
             -webkit-user-select: text;
             -moz-user-select: text;
             -ms-user-select: text;
@@ -219,6 +219,22 @@
         .item-btn, .exchange-btn {
             min-width: 120px;
             font-size: 0.9em;
+        }
+        .action-input {
+            background: rgba(0, 0, 0, 0.6);
+            border: 1px solid #00c6ff;
+            border-radius: 8px;
+            padding: 8px 12px;
+            color: white;
+            font-size: 1.1em;
+            width: 100px;
+            text-align: center;
+            font-family: 'Ithaca', sans-serif;
+        }
+        .action-input:focus {
+            outline: none;
+            box-shadow: 0 0 15px #00ffff;
+            border-color: #00ffff;
         }
         .overlay {
             position: fixed;
@@ -508,44 +524,62 @@
             <div class="shop" id="shopItems"></div>
         </div>
 
-        <!-- Панель обмена -->
+        <!-- ===== ОБНОВЛЁННАЯ ПАНЕЛЬ ОБМЕНА ===== -->
         <div id="exchangePanel" class="exchange-panel">
             <div class="panel-header">
                 <h2>Обмен валют</h2>
                 <button class="panel-close" id="closeExchangePanel">×</button>
             </div>
             <div class="exchange-content">
+                <!-- Баланс Z к USD -->
                 <div class="exchange-row">
-                    <span class="exchange-label">Ваш виртуальный баланс (Z к USD):</span>
+                    <span class="exchange-label">Z → USD (1 Z = 0.002$):</span>
                     <strong id="zToUsdRate">0.0000 $</strong>
                 </div>
-                <!-- ===== НОВАЯ СТРОКА: БАЛАНС USD ===== -->
+                <button id="convertZToUsd" class="exchange-btn" style="margin-bottom: 20px;">💰 Обменять все Z на USD</button>
+
+                <!-- Разделитель -->
+                <div style="border-bottom: 1px solid #448aff; margin: 15px 0;"></div>
+
+                <!-- Баланс USD -->
                 <div class="exchange-row">
-                    <span class="exchange-label">Ваш баланс в USD составляет:</span>
+                    <span class="exchange-label">Ваш баланс USD:</span>
                     <strong id="usdBalanceDisplay">10.00 $</strong>
                 </div>
+
+                <!-- Курс USD → RUB -->
                 <div class="exchange-row">
                     <span class="exchange-label">Курс USD→RUB:</span>
                     <strong id="usdToRubRate">Загрузка...</strong>
                 </div>
-                <div class="exchange-row">
-                    <span class="exchange-label">Сумма в рублях:</span>
-                    <strong id="usdToRubAmount">0.00 ₽</strong>
+
+                <!-- ПОЛЕ ДЛЯ ВВОДА СУММЫ (ТОЛЬКО ЦЕЛЫЕ) -->
+                <div class="exchange-row" style="flex-direction: column; align-items: stretch; gap: 15px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center;">
+                        <span class="exchange-label">Сколько USD обменять?</span>
+                        <input type="number" id="usdAmountToRub" class="action-input" 
+                               placeholder="Сумма $" min="1" step="1" value="10"
+                               style="width: 100px; padding: 8px; border-radius: 8px; background: rgba(0,0,0,0.6); border: 1px solid #00c6ff; color: white; text-align: center; font-size: 1.1em;">
+                    </div>
+                    
+                    <!-- ДИНАМИЧЕСКАЯ КНОПКА -->
+                    <button id="convertUsdToRubCustom" class="exchange-btn" style="background: linear-gradient(45deg, #4caf50, #2e7d32);">
+                        💵 Обменять <span id="usdAmountDisplay">10</span> USD → ₽
+                    </button>
                 </div>
-                <button id="convertZToUsd" class="exchange-btn">Z перевести в USD</button>
-                <button id="convertUsdToRub" class="exchange-btn">Зачислить USD >> RUB на Баланс</button>
+
+                <!-- Старая кнопка (скрыта) -->
+                <button id="convertUsdToRub" style="display: none;">Зачислить USD >> RUB на Баланс</button>
             </div>
         </div>
 
-        <!-- ===== ПАНЕЛЬ ОБУЧЕНИЯ (TUTORIAL) ===== -->
+        <!-- ===== ПАНЕЛЬ ОБУЧЕНИЯ ===== -->
         <div id="tutorialPanel" class="tutorial-panel">
             <div class="panel-header">
                 <h2 style="color: #00ffff;">📚 Добро пожаловать в Z-МАЙНИНГ!</h2>
                 <button class="panel-close" id="closeTutorialBtn">×</button>
             </div>
-            <div id="tutorialContent" class="tutorial-content">
-                <!-- Сюда будет подставляться текущая страница обучения -->
-            </div>
+            <div id="tutorialContent" class="tutorial-content"></div>
         </div>
 
         <div class="footer">
@@ -696,18 +730,17 @@
         const overlay = document.getElementById('overlay');
         const shopItems = document.getElementById('shopItems');
         const convertZToUsd = document.getElementById('convertZToUsd');
-        const convertUsdToRub = document.getElementById('convertUsdToRub');
         const zToUsdRate = document.getElementById('zToUsdRate');
         const usdToRubRate = document.getElementById('usdToRubRate');
         const usdToRubAmount = document.getElementById('usdToRubAmount');
-        const usdBalanceDisplay = document.getElementById('usdBalanceDisplay'); // 👈 НОВЫЙ ЭЛЕМЕНТ
+        const usdBalanceDisplay = document.getElementById('usdBalanceDisplay');
         const statusMsg = document.getElementById('statusMsg');
 
         // Данные игры
         let gameData = {
             balance: 0,
             usdBalance: 10,
-            rubBalance: 15000,      // 👈 СТАРТОВЫЙ БАЛАНС 15000 РУБЛЕЙ
+            rubBalance: 15000,
             mineRate: 0,
             farmPower: 0,
             level: 1,
@@ -715,7 +748,7 @@
             upgrades: {
                 gpu: 0, asic: 0, cooling: 0, powerSupply: 0,
                 network: 0, security: 0, storage: 0, automation: 0,
-                usedGpu: 0 // 👈 ДЛЯ НОВОГО ТОВАРА
+                usedGpu: 0
             }
         };
 
@@ -733,16 +766,15 @@
             security: 7000,
             storage: 6500,
             automation: 15000,
-            usedGpu: 0 // 👈 БУДЕТ РАССЧИТЫВАТЬСЯ ДИНАМИЧЕСКИ
+            usedGpu: 0
         };
 
-        // ===== ОБУЧЕНИЕ (TUTORIAL) =====
+        // ===== ОБУЧЕНИЕ =====
         let tutorialStep = 0;
         const tutorialPanel = document.getElementById('tutorialPanel');
         const tutorialContent = document.getElementById('tutorialContent');
         const closeTutorialBtn = document.getElementById('closeTutorialBtn');
 
-        // Страницы обучения
         const tutorialPages = [
             {
                 icon: '⚡',
@@ -753,30 +785,29 @@
             {
                 icon: '💰',
                 title: 'ПЕРВОЕ УЛУЧШЕНИЕ',
-                text: 'У вас есть <span class="tutorial-highlight">10$</span> и <span class="tutorial-highlight">15000₽</span> на старте. Купите <span class="tutorial-highlight">Б/У видеокарту за 70$</span> в разделе «Улучшения фермы». Сначала обменяйте рубли на доллары, чтобы набрать нужную сумму!',
+                text: 'У вас есть <span class="tutorial-highlight">10$</span> на старте. Купите <span class="tutorial-highlight">Б/У видеокарту за 70$</span> в разделе «Улучшения фермы». Сначала обменяйте рубли на доллары, чтобы набрать нужную сумму!',
                 button: 'Далее →'
             },
             {
                 icon: '⛏️',
                 title: 'МАЙНИНГ И ДОХОД',
-                text: 'После покупки видеокарты начнётся майнинг. Кликайте на кнопку «Майнить!» для быстрого заработка. Даже когда вы не кликаете — ферма работает и приносит Z каждую секунду. Так же за уровень вы будете получать бонус к Z. Выше уровень - Больше бонус!',
+                text: 'После покупки видеокарты начнётся майнинг. Кликайте на кнопку «Майнить!» для быстрого заработка.',
                 button: 'Далее →'
             },
             {
                 icon: '💱',
                 title: 'ОБМЕН ВАЛЮТ',
-                text: 'Z можно обменять на USD по курсу 1 Z = 0.002$. А USD — на рубли по реальному курсу ЦБ РФ. Именно так вы получите доллары для покупки видеокарты!',
+                text: 'Z → USD (1 Z = 0.002$), USD → RUB по курсу ЦБ. Теперь можно обменять любую сумму USD!',
                 button: 'Далее →'
             },
             {
                 icon: '🎮',
                 title: 'БИРЖА И КАЗИНО',
-                text: 'В Z-Бирже вы торгуете BTC по реальному курсу. В Z-Казино играете в «21» и умножаете ставку x2. Всё на общем USD балансе!',
+                text: 'В Z-Бирже вы торгуете BTC по реальному курсу. В Z-Казино играете в «21» и умножаете ставку x2.',
                 button: 'Завершить'
             }
         ];
 
-        // Показать обучение
         function showTutorial() {
             tutorialStep = 0;
             renderTutorialPage();
@@ -784,15 +815,12 @@
             overlay.classList.add('active');
         }
 
-        // Закрыть обучение
         function closeTutorial() {
             tutorialPanel.classList.remove('active');
             overlay.classList.remove('active');
-            // Помечаем, что обучение пройдено
             localStorage.setItem('zMiningTutorialCompleted', 'true');
         }
 
-        // Отрисовать текущую страницу
         function renderTutorialPage() {
             const page = tutorialPages[tutorialStep];
             let dotsHTML = '';
@@ -822,13 +850,10 @@
             });
         }
 
-        // Проверка, нужно ли показывать обучение
         function checkAndShowTutorial() {
             const tutorialCompleted = localStorage.getItem('zMiningTutorialCompleted');
             if (!tutorialCompleted) {
-                setTimeout(() => {
-                    showTutorial();
-                }, 500);
+                setTimeout(() => showTutorial(), 500);
             }
         }
 
@@ -845,7 +870,6 @@
                 try {
                     const parsed = JSON.parse(saved);
                     gameData = { ...gameData, ...parsed };
-                    // Добавляем usedGpu, если его нет в старых сохранениях
                     if (gameData.upgrades && typeof gameData.upgrades.usedGpu === 'undefined') {
                         gameData.upgrades.usedGpu = 0;
                     }
@@ -885,9 +909,7 @@
                 USD_TO_RUB_RATE = data.Valute.USD.Value;
                 usdToRubRate.textContent = `Курс: 1 $ = ${USD_TO_RUB_RATE.toFixed(2)} ₽`;
                 
-                // Обновляем цену б/у видеокарты при загрузке курса
                 UPGRADE_PRICES_RUB.usedGpu = Math.floor(70 * USD_TO_RUB_RATE);
-                
                 updateExchangeDisplay();
             } catch (error) {
                 console.error('Ошибка загрузки курса:', error);
@@ -909,14 +931,13 @@
             const usdAmount = gameData.balance * Z_TO_USD_RATE;
             zToUsdRate.textContent = `${usdAmount.toFixed(4)} $`;
             
-            // 👇 ОБНОВЛЯЕМ ОТОБРАЖЕНИЕ USD БАЛАНСА
             if (usdBalanceDisplay) {
                 usdBalanceDisplay.textContent = gameData.usdBalance.toFixed(2) + ' $';
             }
             
             if (USD_TO_RUB_RATE !== null) {
                 const rubAmount = gameData.usdBalance * USD_TO_RUB_RATE;
-                usdToRubAmount.textContent = `${rubAmount.toFixed(2)}  ₽`;
+                if (usdToRubAmount) usdToRubAmount.textContent = `${rubAmount.toFixed(2)}  ₽`;
             }
         }
 
@@ -1002,13 +1023,7 @@
         // -------------------------------
         function renderShop() {
             const upgrades = [
-                // 👇 НОВЫЙ ТОВАР: Б/У ВИДЕОКАРТА
-                { 
-                    id: 'usedGpu', 
-                    name: 'Б/У видеокарта', 
-                    desc: '+0.08 Z/сек, +2 TH/s • Хороший старт для новичка', 
-                    cost: UPGRADE_PRICES_RUB.usedGpu 
-                },
+                { id: 'usedGpu', name: 'Б/У видеокарта', desc: '+0.08 Z/сек, +2 TH/s • Хороший старт', cost: UPGRADE_PRICES_RUB.usedGpu },
                 { id: 'cooling', name: 'Система охлаждения', desc: '+0.1 Z/сек, +2 TH/s', cost: UPGRADE_PRICES_RUB.cooling },
                 { id: 'powerSupply', name: 'Блок питания премиум', desc: '+0.15 Z/сек, +4 TH/s', cost: UPGRADE_PRICES_RUB.powerSupply },
                 { id: 'network', name: 'Сетевая инфраструктура', desc: '+0.08 Z/сек, +3 TH/s', cost: UPGRADE_PRICES_RUB.network },
@@ -1051,7 +1066,6 @@
                             case 'usedGpu':
                                 gameData.mineRate += 0.08;
                                 gameData.farmPower += 2;
-                                gameData.upgrades.usedGpu++;
                                 break;
                             case 'gpu':
                                 gameData.mineRate += 0.2;
@@ -1102,8 +1116,9 @@
         }
 
         // -------------------------------
-        // ОБМЕН ВАЛЮТ
+        // ОБМЕН ВАЛЮТ — НОВАЯ ВЕРСИЯ
         // -------------------------------
+        // Обмен всех Z на USD
         convertZToUsd.addEventListener('click', () => {
             if (gameData.balance <= 0) {
                 alert('Недостаточно Z для обмена!');
@@ -1120,25 +1135,54 @@
             setTimeout(() => statusMsg.textContent = '', 5000);
         });
 
-        convertUsdToRub.addEventListener('click', () => {
-            if (gameData.usdBalance <= 0) {
-                alert('Недостаточно долларов для обмена!');
-                return;
-            }
-            if (USD_TO_RUB_RATE === null) {
-                alert('Курс USD/RUB не загружен. Попробуйте позже.');
-                return;
-            }
-            const rubReceived = gameData.usdBalance * USD_TO_RUB_RATE;
-            gameData.rubBalance += rubReceived;
-            gameData.usdBalance = 0;
-            buySound.play().catch(e => console.log('Звук обмена не воспроизведён:', e));
-            updateUI();
-            updateExchangeDisplay();
-            saveGame();
-            statusMsg.innerHTML = `<strong style="font-size: 1.2em;">Обменено на ${rubReceived.toFixed(2)}  ₽!</strong>`;
-            setTimeout(() => statusMsg.textContent = '', 5000);
-        });
+        // ===== НОВЫЙ ОБМЕН USD → RUB С ВЫБОРОМ СУММЫ =====
+        const usdAmountInput = document.getElementById('usdAmountToRub');
+        const usdAmountDisplay = document.getElementById('usdAmountDisplay');
+        const convertUsdToRubCustom = document.getElementById('convertUsdToRubCustom');
+
+        if (usdAmountInput) {
+            usdAmountInput.addEventListener('input', function(e) {
+                let value = parseInt(e.target.value);
+                if (isNaN(value) || value < 1) value = 1;
+                e.target.value = value;
+                if (usdAmountDisplay) usdAmountDisplay.textContent = value;
+            });
+        }
+
+        if (convertUsdToRubCustom) {
+            convertUsdToRubCustom.addEventListener('click', function() {
+                if (!USD_TO_RUB_RATE) {
+                    alert('Курс USD/RUB не загружен. Попробуйте позже.');
+                    return;
+                }
+
+                let usdAmount = parseInt(usdAmountInput.value);
+                if (isNaN(usdAmount) || usdAmount <= 0) {
+                    alert('Введите положительное число!');
+                    return;
+                }
+
+                if (gameData.usdBalance < usdAmount) {
+                    alert(`Недостаточно USD! Ваш баланс: ${gameData.usdBalance.toFixed(2)} USD.`);
+                    return;
+                }
+
+                const rubReceived = usdAmount * USD_TO_RUB_RATE;
+                gameData.usdBalance = Math.round((gameData.usdBalance - usdAmount) * 100) / 100;
+                gameData.rubBalance += rubReceived;
+
+                buySound.play().catch(e => console.log('Звук обмена не воспроизведён:', e));
+                updateUI();
+                updateExchangeDisplay();
+                saveGame();
+
+                statusMsg.innerHTML = `<strong style="font-size: 1.2em;">Обменено ${usdAmount} USD → ${rubReceived.toFixed(2)} ₽!</strong>`;
+                setTimeout(() => statusMsg.textContent = '', 5000);
+
+                usdAmountInput.value = 10;
+                if (usdAmountDisplay) usdAmountDisplay.textContent = 10;
+            });
+        }
 
         // -------------------------------
         // ПЕРЕХОДЫ
@@ -1177,10 +1221,7 @@
                 };
                 updateUI();
                 alert('Прогресс сброшен!');
-                
-                setTimeout(() => {
-                    showTutorial();
-                }, 500);
+                setTimeout(() => showTutorial(), 500);
             }
         });
 
@@ -1237,11 +1278,7 @@
                 
                 volumeIcon.addEventListener('click', function(e) {
                     e.stopPropagation();
-                    if (sliderWrapper.style.display === 'none' || sliderWrapper.style.display === '') {
-                        sliderWrapper.style.display = 'flex';
-                    } else {
-                        sliderWrapper.style.display = 'none';
-                    }
+                    sliderWrapper.style.display = sliderWrapper.style.display === 'flex' ? 'none' : 'flex';
                 });
                 
                 document.addEventListener('click', function(e) {
@@ -1271,228 +1308,155 @@
             fetchUsdRate();
             setInterval(fetchUsdRate, 300000);
             backgroundSound.play().catch(e => console.log('Фоновая музыка не воспроизведена:', e));
-            
             checkAndShowTutorial();
         });
 
         // -------------------------------
         // CHANGELOG
         // -------------------------------
-window.openChangelog = function() {
-    const changelogText = `
-═══════════════════════════════════════════════════════════════
-Z-МАЙНИНГ — ПОЛНАЯ ИСТОРИЯ ОБНОВЛЕНИЙ
-═══════════════════════════════════════════════════════════════
+        window.openChangelog = function() {
+            const changelogText = `
+Z-МАЙНИНГ — ИСТОРИЯ ОБНОВЛЕНИЙ
 
 ═══════════════════════════════════════════
-ВЕРСИЯ 2.4.1 — 12.02.2026
+ВЕРСИЯ 2.5.0 — 13.02.2026
 ═══════════════════════════════════════════
-• Биржа: покупка BTC теперь по сумме в долларах
-• Биржа: кнопка «Продать всё» одним нажатием
-• Биржа: обновлён дизайн под единый стиль
+• Обмен USD → RUB: теперь можно выбрать любую сумму
+• Только целые числа, без копеек
+• Кнопка показывает, сколько обменяете
+• Удобный и понятный интерфейс
+
+═══════════════════════════════════════════
+ВЕРСИЯ 2.4.0
+═══════════════════════════════════════════
+• Биржа: покупка BTC по сумме в долларах
+• Биржа: кнопка «Продать всё»
+• Биржа: свечной график с обновлением 5 сек
 
 ═══════════════════════════════════════════
 ВЕРСИЯ 2.3.0
 ═══════════════════════════════════════════
-• Б/У видеокарта в магазине
+• Б/У видеокарта в магазине (70$ → ₽)
 • USD баланс в панели обмена
 • Обучение про покупку видеокарты
 
 ═══════════════════════════════════════════
+ВЕРСИЯ 2.2.0
+═══════════════════════════════════════════
+• Обучение для новых игроков
+• Защита от копирования
 
 ═══════════════════════════════════════════
-ВЕРСИЯ 2.2.0 — ОБУЧЕНИЕ
+ВЕРСИЯ 2.1.0
 ═══════════════════════════════════════════
-• Добавлено обучение для новых игроков
-• 5 страниц с иконками и подсказками
-• Появляется при первом запуске и после сброса
-• Флаг завершения в localStorage
-• Исправлен стартовый баланс: 0 Z, 10 USD, 15000 ₽
-• Защита от копирования текста на всех страницах
-
-───────────────────────────────────────────────────────────────
+• Регулятор громкости
+• Кнопка Z-Казино
+• Исправлен z-index кнопок
 
 ═══════════════════════════════════════════
-ВЕРСИЯ 2.1.0 — УПРАВЛЕНИЕ ЗВУКОМ
+ВЕРСИЯ 2.0.0
 ═══════════════════════════════════════════
-• Регулятор громкости 🔊 на всех страницах
-• Ползунок 0–100% с шагом 5%
-• Сохранение настроек в localStorage
-• Иконка меняется: 🔇 🔈 🔉 🔊
-• Кнопка Z-Казино в главном меню
-• Исправлен z-index кнопок (больше не перекрывают панели)
-
-───────────────────────────────────────────────────────────────
-
-═══════════════════════════════════════════
-ВЕРСИЯ 2.0.0 — КАЗИНО
-═══════════════════════════════════════════
-• Добавлен модуль Z-Казино (game1.html)
-• Классическая игра «21» (очко/блэкджек)
-• Карты выходят по одной с плавной анимацией
-• Живые комментарии дилера
-• Дилер думает перед взятием карты
-• Ставки в USD, выигрыш x2, ничья — возврат
+• Z-Казино — игра «21»
+• Карты по одной, комментарии дилера
 • Легендарные звуки при проигрыше
-• Эмбиент-сопровождение stardust.mp3
-
-───────────────────────────────────────────────────────────────
 
 ═══════════════════════════════════════════
-ВЕРСИЯ 1.4.0 — ИСТОРИЯ СДЕЛОК
+ВЕРСИЯ 1.4.0
 ═══════════════════════════════════════════
-• Добавлена история сделок на бирже
-• Сохраняются: время, тип, количество, курс, сумма
-• Отображение последних 5 операций
-• Цветовая маркировка: зелёный — покупка, красный — продажа
-• Сохранение истории между сессиями
-
-───────────────────────────────────────────────────────────────
+• История сделок на бирже
+• Сохранение между сессиями
 
 ═══════════════════════════════════════════
-ВЕРСИЯ 1.3.0 — БИРЖА
+ВЕРСИЯ 1.3.0
 ═══════════════════════════════════════════
-• Добавлен отдельный модуль Z-Биржа (exchange.html)
-• Торговля BTC/USD по реальному курсу CoinGecko
+• Z-Биржа с реальным курсом BTC
 • График цены Bitcoin
-• Покупка и продажа любого количества BTC
-• Точность: BTC — 8 знаков, USD — 2 знака
-• Общий USD баланс с основной игрой
-
-───────────────────────────────────────────────────────────────
 
 ═══════════════════════════════════════════
-ВЕРСИЯ 1.2.0 — ЗВУКИ И АТМОСФЕРА
+ВЕРСИЯ 1.2.0
 ═══════════════════════════════════════════
-• Добавлены звуковые эффекты
-  - click.wav — майнинг
-  - coin_buy.mp3 — покупка и обмен
-  - lvl_up.mp3 — повышение уровня
-  - mine_loop.mp3 — фоновая музыка фермы
-• Эффект монеток при майнинге
-• Фоновая музыка с возможностью отключения
-
-───────────────────────────────────────────────────────────────
+• Звуки: майнинг, покупка, уровень, фон
+• Эффект монеток
 
 ═══════════════════════════════════════════
-ВЕРСИЯ 1.1.0 — ВАЛЮТА И КУРСЫ
+ВЕРСИЯ 1.1.0
 ═══════════════════════════════════════════
-• Добавлена трёхуровневая экономика: Z → USD → RUB
-• Реальный курс USD/RUB через API ЦБ РФ
-• Обмен Z на USD (1 Z = 0.002$)
-• Обмен USD на RUB
-• Резервный курс при отсутствии интернета
-
-───────────────────────────────────────────────────────────────
+• Экономика Z → USD → RUB
+• Курс ЦБ РФ
 
 ═══════════════════════════════════════════
-ВЕРСИЯ 1.0.0 — ЗАПУСК
+ВЕРСИЯ 1.0.0
 ═══════════════════════════════════════════
-• Основа игры: майнинг криптовалюты Z
-• Ручной майнинг по клику
-• Пассивный доход каждую секунду
-• Система уровней и опыта
-• 8 видов улучшений фермы за рубли
-• Сохранение прогресса в localStorage
+• Майнинг, улучшения, уровни
+• Сохранение в localStorage
 
-═══════════════════════════════════════════════════════════════
+═══════════════════════════════════════════
 Спасибо, что играете в Z-МАЙНИНГ! 🚀
-═══════════════════════════════════════════════════════════════
-    `;
+            `;
 
-    const newWindow = window.open('', '_blank');
-    newWindow.document.write(`
-        <html>
-        <head>
-            <title>Полная история · Z-МАЙНИНГ</title>
-            <style>
-                @font-face {
-                    font-family: 'Ithaca';
-                    src: url('res/ofont_Ithaca.ttf') format('truetype');
-                }
-                body {
-                    font-family: 'Ithaca', sans-serif;
-                    background: linear-gradient(135deg, #0f0f23, #1a1a3e);
-                    color: #e0e0e0;
-                    padding: 30px;
-                    -webkit-user-select: none;
-                    -moz-user-select: none;
-                    -ms-user-select: none;
-                    user-select: none;
-                }
-                .container {
-                    background: rgba(25, 25, 45, 0.95);
-                    border-radius: 30px;
-                    padding: 40px;
-                    border: 2px solid #00ffff;
-                    max-width: 1000px;
-                    margin: 0 auto;
-                    box-shadow: 0 0 50px rgba(0, 255, 255, 0.2);
-                    backdrop-filter: blur(10px);
-                }
-                h1 {
-                    color: #00ffff;
-                    text-align: center;
-                    font-size: 2.5em;
-                    margin-bottom: 30px;
-                    text-shadow: 0 0 15px #00ffff;
-                    letter-spacing: 4px;
-                }
-                pre {
-                    white-space: pre-wrap;
-                    font-family: 'Ithaca', monospace;
-                    font-size: 1.1em;
-                    line-height: 1.6;
-                    background: rgba(0, 0, 0, 0.4);
-                    padding: 30px;
-                    border-radius: 20px;
-                    border-left: 8px solid #00b3ff;
-                    color: #fff;
-                    box-shadow: inset 0 0 30px rgba(0,0,0,0.5);
-                }
-                button {
-                    background: linear-gradient(45deg, #00b3ff, #0077ff);
-                    color: white;
-                    border: none;
-                    padding: 15px 40px;
-                    border-radius: 40px;
-                    cursor: pointer;
-                    font-size: 1.2em;
-                    font-family: 'Ithaca', sans-serif;
-                    display: block;
-                    margin: 30px auto 0;
-                    transition: 0.3s;
-                    box-shadow: 0 0 20px rgba(0,180,255,0.5);
-                    letter-spacing: 2px;
-                }
-                button:hover {
-                    transform: translateY(-3px);
-                    box-shadow: 0 0 30px rgba(0,180,255,0.8);
-                }
-                .version-highlight {
-                    color: #ffd700;
-                    text-shadow: 0 0 10px #ffaa00;
-                }
-            </style>
-            <script>
-                document.addEventListener('contextmenu', e => e.preventDefault());
-                document.addEventListener('keydown', e => {
-                    if (e.ctrlKey && (e.keyCode === 67 || e.keyCode === 86 || e.keyCode === 88 || 
-                        e.keyCode === 65 || e.keyCode === 83 || e.keyCode === 80)) e.preventDefault();
-                    if (e.keyCode === 123) e.preventDefault();
-                });
-            <\/script>
-        </head>
-        <body>
-            <div class="container">
-                <h1>📜 ПОЛНАЯ ИСТОРИЯ</h1>
-                <pre>${changelogText}</pre>
-                <button onclick="window.close()">ЗАКРЫТЬ</button>
-            </div>
-        </body>
-        </html>
-    `);
-};
+            const newWindow = window.open('', '_blank');
+            newWindow.document.write(`
+                <html>
+                <head><title>История обновлений · Z-МАЙНИНГ</title>
+                <style>
+                    @font-face { font-family: 'Ithaca'; src: url('res/ofont_Ithaca.ttf'); }
+                    body {
+                        font-family: 'Ithaca', sans-serif;
+                        background: linear-gradient(135deg, #0f0f23, #1a1a3e);
+                        color: #e0e0e0;
+                        padding: 30px;
+                        -webkit-user-select: none;
+                        -moz-user-select: none;
+                        -ms-user-select: none;
+                        user-select: none;
+                    }
+                    .container {
+                        background: rgba(25,25,45,0.9);
+                        border-radius: 20px;
+                        padding: 30px;
+                        border: 1px solid #00ffff;
+                        max-width: 800px;
+                        margin: 0 auto;
+                    }
+                    h2 { color: #00ffff; text-align: center; }
+                    pre {
+                        white-space: pre-wrap;
+                        font-family: 'Ithaca', sans-serif;
+                        background: rgba(0,0,0,0.3);
+                        padding: 20px;
+                        border-left: 5px solid #00b3ff;
+                        color: #fff;
+                    }
+                    button {
+                        background: #00b3ff;
+                        color: white;
+                        border: none;
+                        padding: 12px 30px;
+                        border-radius: 30px;
+                        cursor: pointer;
+                        display: block;
+                        margin: 20px auto 0;
+                    }
+                </style>
+                <script>
+                    document.addEventListener('contextmenu', e => e.preventDefault());
+                    document.addEventListener('keydown', e => {
+                        if (e.ctrlKey && (e.keyCode === 67 || e.keyCode === 86 || e.keyCode === 88 || 
+                            e.keyCode === 65 || e.keyCode === 83 || e.keyCode === 80)) e.preventDefault();
+                        if (e.keyCode === 123) e.preventDefault();
+                    });
+                <\/script>
+                </head>
+                <body>
+                    <div class="container">
+                        <h2>📋 ПОЛНАЯ ИСТОРИЯ ОБНОВЛЕНИЙ</h2>
+                        <pre>${changelogText}</pre>
+                        <button onclick="window.close()">ЗАКРЫТЬ</button>
+                    </div>
+                </body>
+                </html>
+            `);
+        };
     </script>
 </body>
 </html>
